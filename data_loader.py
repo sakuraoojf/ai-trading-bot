@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 def get_data(symbol="AAPL", period="60d", interval="15m"):
-    df = yf.download(symbol, period=period, interval=interval)
+    df = yf.download(symbol, period=period, interval=interval, progress=False)
     if df.empty:
         return df
         
@@ -21,7 +21,9 @@ def get_data(symbol="AAPL", period="60d", interval="15m"):
 
     df["VOL_SMA"] = df["Volume"].rolling(20).mean()
     
-    # คำนวณแนวรับ (Stop Loss) และแนวต้าน (Take Profit)
+    # [อัปเกรด V3] ระบบตรวจจับวาฬ (Volume มากกว่าค่าเฉลี่ย 2 เท่า)
+    df["Volume_Surge"] = df["Volume"] > (df["VOL_SMA"] * 2) 
+    
     df["Support"] = df["Low"].rolling(20).min()
     df["Resistance"] = df["High"].rolling(20).max()
 
