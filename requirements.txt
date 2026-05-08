@@ -3,7 +3,7 @@ yfinance
 pandas
 numpy<2.0.0
 plotly
-pandas-ta==0.3.14b0
+pandas-ta==0.4.71b0
 scikit-learn
 joblib
 
