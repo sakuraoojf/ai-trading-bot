@@ -5,7 +5,8 @@ import joblib
 import os
 
 MODEL_PATH = "model.pkl"
-FEATURES = ["return", "rsi", "ema_diff", "volume_ratio"]
+# แก้ rsi เป็นตัวใหญ่ RSI ในบรรทัดนี้
+FEATURES = ["return", "RSI", "ema_diff", "volume_ratio"]
 
 def prepare_features(df):
     df = df.copy()
