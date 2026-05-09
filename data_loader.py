@@ -22,17 +22,27 @@ def get_data(symbol="AAPL", period="60d", interval="15m"):
     df["VOL_SMA"] = df["Volume"].rolling(20).mean()
     df["Volume_Surge"] = df["Volume"] > (df["VOL_SMA"] * 2) 
     
-    df["Support"] = df["Low"].rolling(20).min()
     df["Resistance"] = df["High"].rolling(20).max()
 
-    # --- Level 3: Multi-Timeframe (แอบดูเทรนด์ใหญ่รายวัน) ---
+    # --- Level 5: ระบบวัดความแกว่ง ATR (Average True Range) ---
+    df['Prev_Close'] = df['Close'].shift(1)
+    df['TR1'] = df['High'] - df['Low']
+    df['TR2'] = abs(df['High'] - df['Prev_Close'])
+    df['TR3'] = abs(df['Low'] - df['Prev_Close'])
+    df['TR'] = df[['TR1', 'TR2', 'TR3']].max(axis=1)
+    df['ATR'] = df['TR'].rolling(window=14).mean()
+    
+    # จุดคัตลอสยืดหยุ่น: ถอยลงมาจากราคาปัจจุบัน 1.5 เท่าของความแกว่ง
+    df['ATR_SL'] = df['Close'] - (1.5 * df['ATR'])
+    df = df.drop(columns=['Prev_Close', 'TR1', 'TR2', 'TR3', 'TR'])
+
+    # แอบดูเทรนด์ใหญ่
     try:
         df_daily = yf.download(symbol, period="6mo", interval="1d", progress=False)
         if not df_daily.empty:
             if isinstance(df_daily.columns, pd.MultiIndex):
                 df_daily.columns = df_daily.columns.droplevel(1)
             daily_ema50 = df_daily["Close"].ewm(span=50, adjust=False).mean()
-            # เช็คว่าราคาปัจจุบัน ยืนเหนือเส้น EMA50 รายวันได้หรือไม่ (เป็นเทรนด์ขาขึ้นหรือไม่)
             macro_uptrend = df_daily["Close"].iloc[-1] > daily_ema50.iloc[-1]
         else:
             macro_uptrend = True 
@@ -40,6 +50,5 @@ def get_data(symbol="AAPL", period="60d", interval="15m"):
         macro_uptrend = True
         
     df["Macro_Uptrend"] = macro_uptrend
-
     df = df.dropna()
     return df
