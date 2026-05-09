@@ -2,14 +2,15 @@ import streamlit as st
 import plotly.graph_objects as go
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from data_loader import get_data
 from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V12: Level 6 Arbitrage)")
+st.title("🚀 AI Trading Super Dashboard (V13: Portfolio AI)")
 
-menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Train Model"])
+menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Portfolio AI", "Train Model"])
 
 # --- ตั้งค่าความเสี่ยง (Risk Management) ---
 st.sidebar.markdown("---")
@@ -25,7 +26,6 @@ period = "60d" if interval in ["15m", "1h"] else "1y"
 
 if menu == "Dashboard":
     
-    # --- FEATURE 3: SECTOR HEATMAP ---
     st.markdown("### 🗺️ เรดาร์จับกระแสเงิน (วาฬเข้ากลุ่มไหน?)")
     etfs = {"XLK": "เทคโนโลยี", "IBIT": "คริปโต", "XLY": "ฟุ่มเฟือย", "XLF": "การเงิน", "XLE": "พลังงาน"}
     cols = st.columns(5)
@@ -67,7 +67,6 @@ if menu == "Dashboard":
             macro_up = last_row['Macro_Uptrend']
             bull_engulfing = last_row['Bullish_Engulfing']
             
-            # --- SIGNAL LOGIC ---
             if score > 70 and price > ema20 and rsi > 50 and vol_surge and macro_up:
                 st.success("## 🚀 SUPER BUY (เทรนด์ใหญ่เป็นขาขึ้น + วาฬกำลังลาก!)")
                 st.balloons()
@@ -107,7 +106,6 @@ if menu == "Dashboard":
             else:
                 st.error("💡 **แผนการเทรด:** ราคาพุ่งทะลุจุดปลอดภัยไปแล้ว ห้ามเข้าซื้อเด็ดขาด!")
             
-            # --- CHART ---
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
                 x=pred.index, open=pred["Open"], high=pred["High"],
@@ -119,28 +117,21 @@ if menu == "Dashboard":
             surge_df = pred[pred["Volume_Surge"] == True]
             if not surge_df.empty:
                 fig.add_trace(go.Scatter(
-                    x=surge_df.index, y=surge_df["Low"] * 0.99, 
-                    mode='markers', marker=dict(color='yellow', size=12, symbol='star'), 
-                    name="Whale Alert"
+                    x=surge_df.index, y=surge_df["Low"] * 0.99, mode='markers', marker=dict(color='yellow', size=12, symbol='star'), name="Whale Alert"
                 ))
                 
             pattern_df = pred[pred["Bullish_Engulfing"] == True]
             if not pattern_df.empty:
                 fig.add_trace(go.Scatter(
-                    x=pattern_df.index, y=pattern_df["Low"] * 0.97, 
-                    mode='text', text='🕯️', textposition='bottom center', textfont=dict(size=20),
-                    name="Bullish Engulfing"
+                    x=pattern_df.index, y=pattern_df["Low"] * 0.97, mode='text', text='🕯️', textposition='bottom center', textfont=dict(size=20), name="Bullish Engulfing"
                 ))
                 
             fig.update_layout(height=600, template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
 
-# ====================================================
-# --- LEVEL 6: AI CORRELATION ENGINE (เรดาร์หาหุ้นแฝด) ---
-# ====================================================
 elif menu == "Stock Duel":
     st.subheader("⚔️ สังเวียนเปรียบเทียบหุ้น & เรดาร์หาหุ้นแฝด")
-    st.markdown("ระบบจะประเมิน AI Score และคำนวณหาค่า **ความเหมือน (Correlation)** ว่าเป็นหุ้นแฝดที่วิ่งตามกันหรือไม่ เพื่อหาจังหวะดักเก็งกำไรแบบชัวร์ๆ (Statistical Arbitrage)")
+    st.markdown("ระบบจะประเมิน AI Score และคำนวณหาค่า **ความเหมือน (Correlation)** ว่าเป็นหุ้นแฝดที่วิ่งตามกันหรือไม่ เพื่อหาจังหวะดักเก็งกำไรแบบชัวร์ๆ")
     
     col1, col2 = st.columns(2)
     sym1 = col1.text_input("🔵 นักมวยฝั่งน้ำเงิน (Symbol 1)", "NVDA").upper()
@@ -161,12 +152,9 @@ elif menu == "Stock Duel":
                 s1_score = pred1.iloc[-1]['score']
                 s2_score = pred2.iloc[-1]['score']
                 
-                # --- LEVEL 6: CORRELATION ENGINE ---
                 st.markdown("---")
                 st.markdown("### 🔗 AI Correlation Engine (เรดาร์หาหุ้นแฝด)")
                 
-                # คำนวณความสัมพันธ์ (Pearson Correlation) ระหว่างราคาปิด 2 ตัว
-                # Align data indices
                 aligned_df = pd.DataFrame({"P1": pred1["Close"], "P2": pred2["Close"]}).dropna()
                 if len(aligned_df) > 10:
                     correlation = aligned_df["P1"].corr(aligned_df["P2"]) * 100
@@ -181,13 +169,12 @@ elif menu == "Stock Duel":
 
                 if correlation >= 80:
                     st.success(f"**คะแนนความเหมือน:** {correlation:.2f}% 👯 (ยืนยัน: สองตัวนี้คือ **หุ้นแฝด!** วิ่งตามกันเสมอ)")
-                    if perf_gap > 3.0: # ถ้าห่างกันเกิน 3% ให้สัญญาณ Arbitrage
+                    if perf_gap > 3.0: 
                         laggard = sym1 if pred1["Perf"].iloc[-1] < pred2["Perf"].iloc[-1] else sym2
                         leader = sym2 if laggard == sym1 else sym1
                         st.info(f"💡 **สัญญาณเก็งกำไรขั้นสูง (Arbitrage):** ตอนนี้ **{leader}** พุ่งนำหน้าไปแล้ว ทิ้งให้ **{laggard}** รั้งท้าย (Gap ห่างกัน {perf_gap:.2f}%) นี่คือจังหวะทองในการเข้าซื้อ **{laggard}** เพื่อเก็งกำไรตอนที่ราคามันวิ่งตามไปปิดช่องว่าง!")
                     else:
                         st.warning("💡 ตอนนี้หุ้นแฝดคู่นี้ยังวิ่งตีคู่กันมา สูสีมากครับ ยังไม่มีช่องว่าง Arbitrage ให้ทำกำไร")
-                        
                 elif correlation >= 50:
                     st.info(f"**คะแนนความเหมือน:** {correlation:.2f}% (วิ่งคล้ายกัน) มีความสัมพันธ์กันในระดับปานกลาง")
                 elif correlation <= -50:
@@ -196,8 +183,6 @@ elif menu == "Stock Duel":
                     st.warning(f"**คะแนนความเหมือน:** {correlation:.2f}% (ต่างคนต่างวิ่ง) สองตัวนี้แทบไม่มีความเชื่อมโยงกันเลย")
                 
                 st.markdown("---")
-                
-                # --- กรรมการชูมือ ---
                 if s1_score > s2_score:
                     st.success(f"🏆 **ผู้ชนะ AI Score:** 🔵 {sym1} ({s1_score:.2f}% ชนะ {sym2} ที่ได้ {s2_score:.2f}%)")
                 elif s2_score > s1_score:
@@ -205,14 +190,89 @@ elif menu == "Stock Duel":
                 else:
                     st.warning("🤝 เสมอกัน! (กรรมการให้คะแนนเท่ากันเป๊ะ)")
                 
-                st.markdown("### 📈 กราฟเปรียบเทียบผลงาน (Performance %)")
-                
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=pred1.index, y=pred1["Perf"], name=f"🔵 {sym1}", line=dict(color='#00b4d8', width=2)))
                 fig.add_trace(go.Scatter(x=pred2.index, y=pred2["Perf"], name=f"🔴 {sym2}", line=dict(color='#ff4d4d', width=2)))
-                
                 fig.update_layout(yaxis_title="ผลตอบแทน / ขาดทุน (%)", template="plotly_dark", height=500, hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True)
+
+# ====================================================
+# --- BONUS 1: AI PORTFOLIO OPTIMIZATION (จัดพอร์ต) ---
+# ====================================================
+elif menu == "Portfolio AI":
+    st.subheader("💼 AI Portfolio Optimization (จัดพอร์ตกระจายความเสี่ยง)")
+    st.markdown("กรอกรายชื่อหุ้นทั้งหมดที่คุณสนใจ AI จะจำลองการเทรด 5,000 รูปแบบตามทฤษฎี **Markowitz Efficient Frontier** เพื่อคำนวณหาสัดส่วนการแบ่งเงินที่คุ้มค่าที่สุด (เสี่ยงต่ำที่สุด แต่ได้ผลตอบแทนสูงที่สุด)")
+    
+    symbols_input = st.text_input("รายชื่อหุ้นที่ต้องการจัดพอร์ต (คั่นด้วยลูกน้ำ ,)", "AAPL, MSFT, NVDA, COIN, TSLA").upper()
+    symbols = [s.strip() for s in symbols_input.split(",") if s.strip()]
+    
+    if st.button("⚖️ สั่ง AI คำนวณสัดส่วนการลงทุน"):
+        if len(symbols) < 2:
+            st.error("❌ กรุณาใส่ชื่อหุ้นอย่างน้อย 2 ตัวขึ้นไปครับ")
+        else:
+            with st.spinner("AI กำลังดึงข้อมูลและจำลองพอร์ตการลงทุน 5,000 รูปแบบ..."):
+                try:
+                    # ดึงราคาปิดรายวันย้อนหลัง 1 ปี เพื่อหาค่าความผันผวน
+                    df = yf.download(symbols, period="1y", interval="1d", progress=False)['Close']
+                    if df.empty:
+                        st.error("❌ ไม่สามารถดาวน์โหลดข้อมูลหุ้นได้ ตรวจสอบพิมพ์ชื่อหุ้นผิดหรือเปล่าครับ")
+                    else:
+                        # คำนวณผลตอบแทนรายวัน
+                        returns = df.pct_change().dropna()
+                        
+                        # สร้างตัวแปรจำลอง 5,000 รูปแบบ
+                        num_portfolios = 5000
+                        results = np.zeros((3, num_portfolios))
+                        weights_record = []
+                        
+                        cov_matrix = returns.cov() * 252 # Annualized Covariance
+                        mean_returns = returns.mean() * 252 # Annualized Return
+                        
+                        # Monte Carlo Simulation
+                        for i in range(num_portfolios):
+                            weights = np.random.random(len(symbols))
+                            weights /= np.sum(weights) # ทำให้ผลรวม weight = 1.0 (100%)
+                            weights_record.append(weights)
+                            
+                            p_ret = np.sum(mean_returns * weights)
+                            p_std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+                            
+                            results[0,i] = p_ret # Return
+                            results[1,i] = p_std # Risk (Volatility)
+                            results[2,i] = (p_ret - 0.02) / p_std # Sharpe Ratio (Assumes 2% Risk-Free Rate)
+                            
+                        # หาพอร์ตที่ได้ Sharpe Ratio สูงสุด (คุ้มค่าความเสี่ยงที่สุด)
+                        max_sharpe_idx = np.argmax(results[2])
+                        optimal_weights = weights_record[max_sharpe_idx]
+                        
+                        # --- Display Results ---
+                        st.markdown("---")
+                        st.success(f"✅ คำนวณเสร็จสิ้น! นี่คือพอร์ตที่ให้ **ความคุ้มค่าสูงสุด** จากการจำลองกว่า 5,000 รูปแบบ!")
+                        
+                        col1, col2 = st.columns(2)
+                        
+                        # 1. กราฟวงกลม (Pie Chart)
+                        fig = go.Figure(data=[go.Pie(labels=symbols, values=optimal_weights, hole=.4, textinfo='label+percent')])
+                        fig.update_layout(title_text="สัดส่วนการแบ่งเงินที่ดีที่สุด (Optimal Weights)", template="plotly_dark")
+                        col1.plotly_chart(fig, use_container_width=True)
+                        
+                        # 2. สรุปตัวเลขและการแบ่งเงิน
+                        alloc_data = []
+                        for i, sym in enumerate(symbols):
+                            w_pct = optimal_weights[i] * 100
+                            alloc_amt = capital * optimal_weights[i]
+                            alloc_data.append({"หุ้น (Symbol)": sym, "สัดส่วน (%)": f"{w_pct:.2f}%", "จำนวนเงินลงทุน ($)": f"${alloc_amt:.2f}"})
+                            
+                        alloc_df = pd.DataFrame(alloc_data)
+                        
+                        col2.markdown("### 💰 แผนการจัดสรรเงินทุน")
+                        col2.markdown(f"*(อ้างอิงจากเงินทุนทั้งหมด **${capital:.2f}** ที่คุณตั้งไว้ในแถบซ้ายมือ)*")
+                        col2.table(alloc_df)
+                        
+                        col2.info(f"**📈 คาดการณ์ผลตอบแทนต่อปี:** +{results[0, max_sharpe_idx]*100:.2f}%\n\n**📉 อัตราความผันผวน (ความเสี่ยง):** {results[1, max_sharpe_idx]*100:.2f}%")
+                        
+                except Exception as e:
+                    st.error(f"❌ เกิดข้อผิดพลาดในการคำนวณ: กรุณาตรวจสอบชื่อหุ้นอีกครั้งครับ (Error: {e})")
 
 elif menu == "Scanner":
     st.subheader(f"📊 ระบบจับวาฬ (สแกนราย {interval} บนหุ้นซิ่ง 42 ตัว)")
