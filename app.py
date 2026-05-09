@@ -7,7 +7,7 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V7: Money Flow Radar)")
+st.title("🚀 AI Trading Super Dashboard (V8: Pattern Recognition)")
 
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Train Model"])
 
@@ -27,18 +27,10 @@ if menu == "Dashboard":
     
     # --- FEATURE 3: SECTOR HEATMAP (เรดาร์จับกระแสเงิน) ---
     st.markdown("### 🗺️ เรดาร์จับกระแสเงิน (วาฬเข้ากลุ่มไหน?)")
-    etfs = {
-        "XLK": "เทคโนโลยี", 
-        "IBIT": "คริปโต", 
-        "XLY": "ฟุ่มเฟือย",
-        "XLF": "การเงิน",
-        "XLE": "พลังงาน"
-    }
-    
+    etfs = {"XLK": "เทคโนโลยี", "IBIT": "คริปโต", "XLY": "ฟุ่มเฟือย", "XLF": "การเงิน", "XLE": "พลังงาน"}
     cols = st.columns(5)
     for idx, (ticker, name) in enumerate(etfs.items()):
         try:
-            # ดึงข้อมูลย้อนหลัง 5 วันเพื่อหาค่าความเปลี่ยนแปลงของเมื่อวานเทียบวันนี้
             etf_df = yf.download(ticker, period="5d", interval="1d", progress=False)
             if not etf_df.empty and len(etf_df) >= 2:
                 if isinstance(etf_df.columns, pd.MultiIndex):
@@ -54,7 +46,6 @@ if menu == "Dashboard":
             
     st.markdown("---")
     
-    # --- ของเดิม: ค้นหาหุ้น ---
     symbol = st.text_input("ค้นหาหุ้นที่ Discord แจ้งเตือน (Symbol)", "COIN").upper()
     df = get_data(symbol, period=period, interval=interval)
     
@@ -74,6 +65,7 @@ if menu == "Dashboard":
             resist = last_row['Resistance']
             vol_surge = last_row['Volume_Surge']
             macro_up = last_row['Macro_Uptrend']
+            bull_engulfing = last_row['Bullish_Engulfing']
             
             # --- SIGNAL LOGIC ---
             if score > 70 and price > ema20 and rsi > 50 and vol_surge and macro_up:
@@ -87,6 +79,10 @@ if menu == "Dashboard":
                 st.error("## 🔴 SELL / AVOID (ขาลง หนีด่วน!)")
             else:
                 st.warning("## 🟡 WAIT (รอดูอาการไปก่อน)")
+                
+            # --- FEATURE 4: PATTERN ALERT ---
+            if bull_engulfing:
+                st.info("🔥 **PATTERN DETECTED:** พบสัญลักษณ์ 🕯️ **Bullish Engulfing (แท่งเทียนกลืนกินขาขึ้น)** เพิ่งเกิดพฤติกรรมการกวาดซื้อกลับตัวอย่างรุนแรง ถือเป็นจุดเข้าที่มีความแม่นยำสูงมาก!")
             
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Current Price", f"${price:.2f}")
@@ -94,7 +90,6 @@ if menu == "Dashboard":
             col3.metric("🎯 จุดทำกำไร (TP)", f"${resist:.2f}")
             col4.metric("🛑 ATR Stop Loss", f"${atr_sl:.2f}", "หนีตายอัตโนมัติ", delta_color="off")
             
-            # --- FEATURE 1: POSITION SIZING CALCULATOR ---
             st.markdown("### ⚖️ เครื่องคิดเลขคำนวณหน้าตัก (ล็อคความเสี่ยง)")
             risk_amount = capital * (risk_pct / 100)
             distance_to_sl = price - atr_sl
@@ -129,6 +124,15 @@ if menu == "Dashboard":
                     x=surge_df.index, y=surge_df["Low"] * 0.99, 
                     mode='markers', marker=dict(color='yellow', size=12, symbol='star'), 
                     name="Whale Alert"
+                ))
+                
+            # เพิ่มการโชว์สัญลักษณ์ Bullish Engulfing บนกราฟ
+            pattern_df = pred[pred["Bullish_Engulfing"] == True]
+            if not pattern_df.empty:
+                fig.add_trace(go.Scatter(
+                    x=pattern_df.index, y=pattern_df["Low"] * 0.97, 
+                    mode='text', text='🕯️', textposition='bottom center', textfont=dict(size=20),
+                    name="Bullish Engulfing"
                 ))
                 
             fig.update_layout(height=600, template="plotly_dark")
