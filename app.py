@@ -7,9 +7,10 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V8: Pattern Recognition)")
+st.title("🚀 AI Trading Super Dashboard (V9: Final Form)")
 
-menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Train Model"])
+# --- อัปเดตเมนูบาร์: เพิ่ม "Stock Duel" ---
+menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Train Model"])
 
 # --- ตั้งค่าความเสี่ยง (Risk Management) ---
 st.sidebar.markdown("---")
@@ -126,7 +127,6 @@ if menu == "Dashboard":
                     name="Whale Alert"
                 ))
                 
-            # เพิ่มการโชว์สัญลักษณ์ Bullish Engulfing บนกราฟ
             pattern_df = pred[pred["Bullish_Engulfing"] == True]
             if not pattern_df.empty:
                 fig.add_trace(go.Scatter(
@@ -137,6 +137,66 @@ if menu == "Dashboard":
                 
             fig.update_layout(height=600, template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
+
+# ====================================================
+# --- FEATURE 5: STOCK DUEL (สังเวียนเปรียบเทียบหุ้น) ---
+# ====================================================
+elif menu == "Stock Duel":
+    st.subheader("⚔️ สังเวียนเปรียบเทียบหุ้น (Relative Strength Duel)")
+    st.markdown("ระบบจะประเมินคะแนน AI Score ของนักมวยทั้ง 2 ฝั่ง และสร้างกราฟเปรียบเทียบ Performance (เริ่มวิ่งจาก 0% เท่ากัน) เพื่อหาว่าม้าตัวไหนวิ่งแรงกว่ากัน")
+    
+    col1, col2 = st.columns(2)
+    sym1 = col1.text_input("🔵 นักมวยฝั่งน้ำเงิน (Symbol 1)", "NVDA").upper()
+    sym2 = col2.text_input("🔴 นักมวยฝั่งแดง (Symbol 2)", "AMD").upper()
+    
+    if st.button("🔥 สั่ง AI กรรมการเริ่มการประลอง!"):
+        with st.spinner("กรรมการกำลังคำนวณและเปรียบเทียบกราฟ..."):
+            df1 = get_data(sym1, period=period, interval=interval)
+            df2 = get_data(sym2, period=period, interval=interval)
+            
+            if df1.empty or df2.empty:
+                st.error("❌ ข้อมูลหุ้นไม่ครบ ตรวจสอบชื่อหุ้นให้ถูกต้องอีกครั้งครับ")
+            else:
+                model = load_model()
+                pred1 = predict(df1, model)
+                pred2 = predict(df2, model)
+                
+                s1_score = pred1.iloc[-1]['score']
+                s2_score = pred2.iloc[-1]['score']
+                
+                # --- กรรมการชูมือ ---
+                st.markdown("---")
+                if s1_score > s2_score:
+                    st.success(f"🏆 **ผู้ชนะคือ: 🔵 {sym1}** (AI Score: {s1_score:.2f}% | ชนะ {sym2} ที่ได้ {s2_score:.2f}%)")
+                elif s2_score > s1_score:
+                    st.success(f"🏆 **ผู้ชนะคือ: 🔴 {sym2}** (AI Score: {s2_score:.2f}% | ชนะ {sym1} ที่ได้ {s1_score:.2f}%)")
+                else:
+                    st.warning("🤝 เสมอกัน! (กรรมการให้คะแนนเท่ากันเป๊ะ)")
+                
+                # --- ตารางสรุปหมัดต่อหมัด ---
+                st.markdown("### 📊 สรุปสถิติหมัดต่อหมัด")
+                stat_df = pd.DataFrame({
+                    "สถิติการชก": ["AI Score (ความน่าจะเป็น)", "RSI (ความร้อนแรงของราคา)", "Volume Surge (มีวาฬเข้าไหม?)", "Trend (เทรนด์ระดับ Macro)"],
+                    f"🔵 {sym1}": [f"{s1_score:.2f}%", f"{pred1.iloc[-1]['RSI']:.2f}", "✅ ใช่" if pred1.iloc[-1]['Volume_Surge'] else "❌ ไม่", "📈 ขาขึ้น" if pred1.iloc[-1]['Macro_Uptrend'] else "📉 ขาลง"],
+                    f"🔴 {sym2}": [f"{s2_score:.2f}%", f"{pred2.iloc[-1]['RSI']:.2f}", "✅ ใช่" if pred2.iloc[-1]['Volume_Surge'] else "❌ ไม่", "📈 ขาขึ้น" if pred2.iloc[-1]['Macro_Uptrend'] else "📉 ขาลง"]
+                })
+                st.table(stat_df)
+                
+                # --- กราฟเปรียบเทียบ (Normalized Performance) ---
+                st.markdown("### 📈 กราฟเปรียบเทียบผลงาน (Performance %)")
+                # ปรับ base (ฐานเริ่มต้น) ให้เป็น 0% เท่ากันตั้งแต่วันแรกของกราฟ
+                p1_base = pred1["Close"].iloc[0]
+                p2_base = pred2["Close"].iloc[0]
+                
+                pred1["Perf"] = ((pred1["Close"] - p1_base) / p1_base) * 100
+                pred2["Perf"] = ((pred2["Close"] - p2_base) / p2_base) * 100
+                
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=pred1.index, y=pred1["Perf"], name=f"🔵 {sym1}", line=dict(color='#00b4d8', width=2)))
+                fig.add_trace(go.Scatter(x=pred2.index, y=pred2["Perf"], name=f"🔴 {sym2}", line=dict(color='#ff4d4d', width=2)))
+                
+                fig.update_layout(yaxis_title="ผลตอบแทน / ขาดทุน (%)", template="plotly_dark", height=500, hovermode="x unified")
+                st.plotly_chart(fig, use_container_width=True)
 
 elif menu == "Scanner":
     st.subheader(f"📊 ระบบจับวาฬ (สแกนราย {interval} บนหุ้นซิ่ง 42 ตัว)")
