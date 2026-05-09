@@ -8,9 +8,10 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V13: Portfolio AI)")
+st.title("🚀 AI Trading Super Dashboard (V14: Backtest Engine)")
 
-menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Portfolio AI", "Train Model"])
+# --- เพิ่มเมนู "Backtest AI" ---
+menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Portfolio AI", "Backtest AI", "Train Model"])
 
 # --- ตั้งค่าความเสี่ยง (Risk Management) ---
 st.sidebar.markdown("---")
@@ -196,9 +197,6 @@ elif menu == "Stock Duel":
                 fig.update_layout(yaxis_title="ผลตอบแทน / ขาดทุน (%)", template="plotly_dark", height=500, hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True)
 
-# ====================================================
-# --- BONUS 1: AI PORTFOLIO OPTIMIZATION (จัดพอร์ต) ---
-# ====================================================
 elif menu == "Portfolio AI":
     st.subheader("💼 AI Portfolio Optimization (จัดพอร์ตกระจายความเสี่ยง)")
     st.markdown("กรอกรายชื่อหุ้นทั้งหมดที่คุณสนใจ AI จะจำลองการเทรด 5,000 รูปแบบตามทฤษฎี **Markowitz Efficient Frontier** เพื่อคำนวณหาสัดส่วนการแบ่งเงินที่คุ้มค่าที่สุด (เสี่ยงต่ำที่สุด แต่ได้ผลตอบแทนสูงที่สุด)")
@@ -212,51 +210,42 @@ elif menu == "Portfolio AI":
         else:
             with st.spinner("AI กำลังดึงข้อมูลและจำลองพอร์ตการลงทุน 5,000 รูปแบบ..."):
                 try:
-                    # ดึงราคาปิดรายวันย้อนหลัง 1 ปี เพื่อหาค่าความผันผวน
                     df = yf.download(symbols, period="1y", interval="1d", progress=False)['Close']
                     if df.empty:
                         st.error("❌ ไม่สามารถดาวน์โหลดข้อมูลหุ้นได้ ตรวจสอบพิมพ์ชื่อหุ้นผิดหรือเปล่าครับ")
                     else:
-                        # คำนวณผลตอบแทนรายวัน
                         returns = df.pct_change().dropna()
-                        
-                        # สร้างตัวแปรจำลอง 5,000 รูปแบบ
                         num_portfolios = 5000
                         results = np.zeros((3, num_portfolios))
                         weights_record = []
                         
-                        cov_matrix = returns.cov() * 252 # Annualized Covariance
-                        mean_returns = returns.mean() * 252 # Annualized Return
+                        cov_matrix = returns.cov() * 252 
+                        mean_returns = returns.mean() * 252 
                         
-                        # Monte Carlo Simulation
                         for i in range(num_portfolios):
                             weights = np.random.random(len(symbols))
-                            weights /= np.sum(weights) # ทำให้ผลรวม weight = 1.0 (100%)
+                            weights /= np.sum(weights) 
                             weights_record.append(weights)
                             
                             p_ret = np.sum(mean_returns * weights)
                             p_std = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
                             
-                            results[0,i] = p_ret # Return
-                            results[1,i] = p_std # Risk (Volatility)
-                            results[2,i] = (p_ret - 0.02) / p_std # Sharpe Ratio (Assumes 2% Risk-Free Rate)
+                            results[0,i] = p_ret 
+                            results[1,i] = p_std 
+                            results[2,i] = (p_ret - 0.02) / p_std 
                             
-                        # หาพอร์ตที่ได้ Sharpe Ratio สูงสุด (คุ้มค่าความเสี่ยงที่สุด)
                         max_sharpe_idx = np.argmax(results[2])
                         optimal_weights = weights_record[max_sharpe_idx]
                         
-                        # --- Display Results ---
                         st.markdown("---")
                         st.success(f"✅ คำนวณเสร็จสิ้น! นี่คือพอร์ตที่ให้ **ความคุ้มค่าสูงสุด** จากการจำลองกว่า 5,000 รูปแบบ!")
                         
                         col1, col2 = st.columns(2)
                         
-                        # 1. กราฟวงกลม (Pie Chart)
                         fig = go.Figure(data=[go.Pie(labels=symbols, values=optimal_weights, hole=.4, textinfo='label+percent')])
                         fig.update_layout(title_text="สัดส่วนการแบ่งเงินที่ดีที่สุด (Optimal Weights)", template="plotly_dark")
                         col1.plotly_chart(fig, use_container_width=True)
                         
-                        # 2. สรุปตัวเลขและการแบ่งเงิน
                         alloc_data = []
                         for i, sym in enumerate(symbols):
                             w_pct = optimal_weights[i] * 100
@@ -268,11 +257,131 @@ elif menu == "Portfolio AI":
                         col2.markdown("### 💰 แผนการจัดสรรเงินทุน")
                         col2.markdown(f"*(อ้างอิงจากเงินทุนทั้งหมด **${capital:.2f}** ที่คุณตั้งไว้ในแถบซ้ายมือ)*")
                         col2.table(alloc_df)
-                        
                         col2.info(f"**📈 คาดการณ์ผลตอบแทนต่อปี:** +{results[0, max_sharpe_idx]*100:.2f}%\n\n**📉 อัตราความผันผวน (ความเสี่ยง):** {results[1, max_sharpe_idx]*100:.2f}%")
                         
                 except Exception as e:
                     st.error(f"❌ เกิดข้อผิดพลาดในการคำนวณ: กรุณาตรวจสอบชื่อหุ้นอีกครั้งครับ (Error: {e})")
+
+# ====================================================
+# --- BONUS 2: BACKTEST AI (เครื่องย้อนเวลาจำลองเทรด) ---
+# ====================================================
+elif menu == "Backtest AI":
+    st.subheader("⏮️ Backtest AI (เครื่องย้อนเวลาจำลองการเทรด)")
+    st.markdown("ระบบจะย้อนเวลากลับไป 1 ปี และจำลองการซื้อขายตามสัญญาณ AI ทุกขั้นตอน เพื่อพิสูจน์ว่ากลยุทธ์ของบอทตัวนี้ทำเงินได้จริงหรือไม่เมื่อเทียบกับการ **'ซื้อแล้วถือทิ้งไว้ (Buy & Hold)'**")
+    
+    col1, col2 = st.columns(2)
+    backtest_sym = col1.text_input("ชื่อหุ้นที่ต้องการจำลอง (Symbol)", "TSLA").upper()
+    starting_cash = col2.number_input("เงินทุนเริ่มต้นสมมติ ($)", min_value=100.0, value=1000.0, step=100.0)
+    
+    if st.button("⏪ เริ่มย้อนเวลาจำลองพอร์ต"):
+        with st.spinner("AI กำลังย้อนเวลาและจำลองการซื้อขายอย่างหนัก..."):
+            df = get_data(backtest_sym, period="1y", interval="1d")
+            if df.empty:
+                st.error("❌ ข้อมูลไม่ครบถ้วน กรุณาลองหุ้นตัวอื่นครับ")
+            else:
+                model = load_model()
+                pred = predict(df, model)
+                
+                # --- ตัวแปรการจำลอง (Simulation Variables) ---
+                cash = starting_cash
+                position_shares = 0
+                buy_price = 0
+                equity_curve = []
+                buy_hold_curve = []
+                trades = []
+                
+                initial_price = pred.iloc[0]["Close"]
+                bh_shares = starting_cash / initial_price # สมมติซื้อวันแรกแล้วถือยาว
+                
+                for index, row in pred.iterrows():
+                    price = row["Close"]
+                    score = row["score"]
+                    ema20 = row["EMA20"]
+                    rsi = row["RSI"]
+                    atr_sl = row["ATR_SL"]
+                    macro_up = row["Macro_Uptrend"]
+                    
+                    # 1. Buy & Hold (มนุษย์ปกติ)
+                    buy_hold_equity = bh_shares * price
+                    buy_hold_curve.append(buy_hold_equity)
+                    
+                    # 2. AI Strategy Logic (บอทเทรด)
+                    if position_shares == 0:
+                        # เงื่อนไขเข้าซื้อ: กราฟเป็นขาขึ้นและคะแนน AI เกิน 60
+                        if score > 60 and price > ema20 and rsi > 50 and macro_up:
+                            position_shares = cash / price
+                            cash = 0
+                            buy_price = price
+                            trades.append({'Date': index.strftime('%Y-%m-%d'), 'Action': '🟢 BUY', 'Price': f"${price:.2f}", 'Profit/Loss': '-'})
+                    elif position_shares > 0:
+                        # เงื่อนไขขายทิ้ง: หลุดเส้นหนีตาย ATR หรือ AI บอกให้หนี
+                        if price < atr_sl or score < 40 or price < ema20:
+                            cash = position_shares * price
+                            position_shares = 0
+                            profit_pct = ((price - buy_price) / buy_price) * 100
+                            trades.append({'Date': index.strftime('%Y-%m-%d'), 'Action': '🔴 SELL', 'Price': f"${price:.2f}", 'Profit/Loss': f"{profit_pct:.2f}%"})
+                            
+                    # บันทึกมูลค่าพอร์ตปัจจุบันของบอท
+                    current_equity = cash if position_shares == 0 else position_shares * price
+                    equity_curve.append(current_equity)
+                
+                # ปิดสถานะวันสุดท้ายเพื่อคำนวณเงินสด
+                if position_shares > 0:
+                    cash = position_shares * pred.iloc[-1]["Close"]
+                    
+                pred["Equity"] = equity_curve
+                pred["Buy_Hold"] = buy_hold_curve
+                
+                # --- สรุปสถิติ (Metrics) ---
+                net_profit = cash - starting_cash
+                net_profit_pct = (net_profit / starting_cash) * 100
+                bh_profit_pct = ((buy_hold_curve[-1] - starting_cash) / starting_cash) * 100
+                
+                # นับการชนะ/แพ้
+                wins = 0
+                losses = 0
+                for t in trades:
+                    if t['Action'] == '🔴 SELL':
+                        pct = float(t['Profit/Loss'].replace('%', ''))
+                        if pct > 0: wins += 1
+                        else: losses += 1
+                
+                total_closed = wins + losses
+                win_rate = (wins / total_closed * 100) if total_closed > 0 else 0
+                
+                # คำนวณ Max Drawdown (พังหนักสุด)
+                pred['Peak'] = pred['Equity'].cummax()
+                pred['Drawdown'] = (pred['Equity'] - pred['Peak']) / pred['Peak']
+                max_dd = pred['Drawdown'].min() * 100
+                
+                # --- แสดงผลหน้าเว็บ ---
+                st.markdown("---")
+                st.success(f"✅ จำลองการเทรด 1 ปีเสร็จสิ้น! บอททำการเทรดเข้า-ออกไปทั้งหมด {total_closed} รอบ")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("กำไรสุทธิของบอท (AI Profit)", f"${net_profit:.2f}", f"{net_profit_pct:.2f}%")
+                c2.metric("ความแม่นยำ (Win Rate)", f"{win_rate:.2f}%", f"{wins} ชนะ / {losses} แพ้")
+                c3.metric("พอร์ตเคยติดลบหนักสุด (Max Drawdown)", f"{max_dd:.2f}%", "ความเสี่ยงขั้นวิกฤต", delta_color="inverse")
+                c4.metric("กำไรของคนทั่วไป (Buy & Hold)", f"${buy_hold_curve[-1]-starting_cash:.2f}", f"{bh_profit_pct:.2f}%", delta_color="off")
+                
+                # สร้างกราฟเปรียบเทียบ
+                st.markdown("### 📈 กราฟเปรียบเทียบความรวย (AI vs Buy & Hold)")
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=pred.index, y=pred["Equity"], name="🤖 พอร์ตที่เทรดด้วย AI Strategy", line=dict(color='#00ffcc', width=3)))
+                fig.add_trace(go.Scatter(x=pred.index, y=pred["Buy_Hold"], name="👤 พอร์ตคนปกติ (ซื้อแล้วดอยถือยาว)", line=dict(color='gray', width=2, dash='dot')))
+                fig.update_layout(yaxis_title="มูลค่าพอร์ตเงินทุน ($)", template="plotly_dark", height=500, hovermode="x unified")
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # สรุปใครชนะ
+                if net_profit_pct > bh_profit_pct:
+                    st.success(f"🏆 **สรุปผล:** บอท AI เอาชนะการซื้อถือยาวได้ขาดลอย! (บอทกำไร {net_profit_pct:.2f}% vs คนทั่วไปกำไร {bh_profit_pct:.2f}%) กลยุทธ์นี้ใช้งานได้จริง!")
+                else:
+                    st.warning(f"⚠️ **สรุปผล:** บอท AI แพ้การถือยาวในหุ้นตัวนี้ครับ! (คนทั่วไปกำไร {bh_profit_pct:.2f}% vs บอทได้แค่ {net_profit_pct:.2f}%) แนะนำให้เลี่ยงการใช้บอทเทรดหุ้นตัวนี้ หรือหุ้นตัวนี้อาจจะเหมาะกับการเก็บยาวมากกว่า")
+                
+                # ประวัติการเทรด
+                if trades:
+                    with st.expander("📝 คลิกเพื่อดูประวัติการเข้าซื้อและขาย (Trade Log) ทุกไม้"):
+                        st.table(pd.DataFrame(trades))
 
 elif menu == "Scanner":
     st.subheader(f"📊 ระบบจับวาฬ (สแกนราย {interval} บนหุ้นซิ่ง 42 ตัว)")
