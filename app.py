@@ -7,7 +7,7 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V10: News Sentiment)")
+st.title("🚀 AI Trading Super Dashboard (V12: Level 6 Arbitrage)")
 
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Train Model"])
 
@@ -22,36 +22,6 @@ st.sidebar.markdown("---")
 selected_tf = st.sidebar.selectbox("Timeframe", list(interval_map.keys()))
 interval = interval_map[selected_tf]
 period = "60d" if interval in ["15m", "1h"] else "1y"
-
-# --- ฟังก์ชัน AI อ่านข่าว ---
-def analyze_news(symbol):
-    try:
-        ticker = yf.Ticker(symbol)
-        news = ticker.news
-        if not news: return [], "Neutral", 0
-            
-        positive_words = ['surge', 'beat', 'up', 'record', 'partnership', 'profit', 'upgrade', 'high', 'gain', 'buy', 'growth', 'jump']
-        negative_words = ['crash', 'miss', 'down', 'drop', 'lawsuit', 'sec', 'downgrade', 'low', 'loss', 'sell', 'risk', 'fail', 'investigation', 'plunge']
-        
-        score = 0
-        news_data = []
-        for item in news[:5]:
-            title = item.get('title', '')
-            link = item.get('link', '')
-            publisher = item.get('publisher', '')
-            title_lower = title.lower()
-            
-            pos_match = sum(1 for word in positive_words if word in title_lower)
-            neg_match = sum(1 for word in negative_words if word in title_lower)
-            score += (pos_match - neg_match)
-            news_data.append({"title": title, "publisher": publisher, "link": link})
-            
-        if score >= 1: sentiment = "Bullish 🟢 (ข่าวดี พุ่งแน่!)"
-        elif score <= -1: sentiment = "Bearish 🔴 (ข่าวร้าย ระวังโดนทุบ!)"
-        else: sentiment = "Neutral 🟡 (ข่าวทรงตัว)"
-        return news_data, sentiment, score
-    except:
-        return [], "Neutral 🟡 (ไม่มีข้อมูล)", 0
 
 if menu == "Dashboard":
     
@@ -165,39 +135,19 @@ if menu == "Dashboard":
             fig.update_layout(height=600, template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
 
-            # ====================================================
-            # --- LEVEL 2: NEWS SENTIMENT (สแกนอารมณ์ข่าว) ---
-            # ====================================================
-            st.markdown("---")
-            st.markdown("### 📰 เรดาร์สแกนข่าวเศรษฐกิจ (News Sentiment)")
-            with st.spinner("AI กำลังสแกนพาดหัวข่าวล่าสุด..."):
-                news_list, sentiment, news_score = analyze_news(symbol)
-                
-                if sentiment.startswith("Bullish"):
-                    st.success(f"**อารมณ์ตลาดโดยรวม:** {sentiment} (คะแนน: {news_score}) - กราฟสวย ข่าวดี สนับสนุนกันเต็มที่!")
-                elif sentiment.startswith("Bearish"):
-                    st.error(f"**อารมณ์ตลาดโดยรวม:** {sentiment} (คะแนน: {news_score}) - ⚠️ ข่าวร้ายกำลังมา ระวังโดนทุบหนัก!")
-                else:
-                    st.warning(f"**อารมณ์ตลาดโดยรวม:** {sentiment} (คะแนน: {news_score}) - ข่าวทรงตัว ไม่มีนัยยะสำคัญ")
-                
-                if news_list:
-                    with st.expander("คลิกเพื่อดูพาดหัวข่าวล่าสุด 5 อันดับแรก"):
-                        for n in news_list:
-                            st.markdown(f"- [{n['title']}]({n['link']}) *(จาก: {n['publisher']})*")
-                else:
-                    st.info("ไม่พบข่าวสารล่าสุดของหุ้นตัวนี้")
-
-# --- FEATURE 5: STOCK DUEL (สังเวียนเปรียบเทียบหุ้น) ---
+# ====================================================
+# --- LEVEL 6: AI CORRELATION ENGINE (เรดาร์หาหุ้นแฝด) ---
+# ====================================================
 elif menu == "Stock Duel":
-    st.subheader("⚔️ สังเวียนเปรียบเทียบหุ้น (Relative Strength Duel)")
-    st.markdown("ระบบจะประเมินคะแนน AI Score ของนักมวยทั้ง 2 ฝั่ง และสร้างกราฟเปรียบเทียบ Performance (เริ่มวิ่งจาก 0% เท่ากัน) เพื่อหาว่าม้าตัวไหนวิ่งแรงกว่ากัน")
+    st.subheader("⚔️ สังเวียนเปรียบเทียบหุ้น & เรดาร์หาหุ้นแฝด")
+    st.markdown("ระบบจะประเมิน AI Score และคำนวณหาค่า **ความเหมือน (Correlation)** ว่าเป็นหุ้นแฝดที่วิ่งตามกันหรือไม่ เพื่อหาจังหวะดักเก็งกำไรแบบชัวร์ๆ (Statistical Arbitrage)")
     
     col1, col2 = st.columns(2)
     sym1 = col1.text_input("🔵 นักมวยฝั่งน้ำเงิน (Symbol 1)", "NVDA").upper()
     sym2 = col2.text_input("🔴 นักมวยฝั่งแดง (Symbol 2)", "AMD").upper()
     
-    if st.button("🔥 สั่ง AI กรรมการเริ่มการประลอง!"):
-        with st.spinner("กรรมการกำลังคำนวณและเปรียบเทียบกราฟ..."):
+    if st.button("🔥 สั่ง AI เริ่มการประลองและค้นหาหุ้นแฝด!"):
+        with st.spinner("AI กำลังวิเคราะห์ความสัมพันธ์ของกราฟ..."):
             df1 = get_data(sym1, period=period, interval=interval)
             df2 = get_data(sym2, period=period, interval=interval)
             
@@ -211,28 +161,51 @@ elif menu == "Stock Duel":
                 s1_score = pred1.iloc[-1]['score']
                 s2_score = pred2.iloc[-1]['score']
                 
+                # --- LEVEL 6: CORRELATION ENGINE ---
                 st.markdown("---")
+                st.markdown("### 🔗 AI Correlation Engine (เรดาร์หาหุ้นแฝด)")
+                
+                # คำนวณความสัมพันธ์ (Pearson Correlation) ระหว่างราคาปิด 2 ตัว
+                # Align data indices
+                aligned_df = pd.DataFrame({"P1": pred1["Close"], "P2": pred2["Close"]}).dropna()
+                if len(aligned_df) > 10:
+                    correlation = aligned_df["P1"].corr(aligned_df["P2"]) * 100
+                else:
+                    correlation = 0
+                    
+                p1_base = pred1["Close"].iloc[0]
+                p2_base = pred2["Close"].iloc[0]
+                pred1["Perf"] = ((pred1["Close"] - p1_base) / p1_base) * 100
+                pred2["Perf"] = ((pred2["Close"] - p2_base) / p2_base) * 100
+                perf_gap = abs(pred1["Perf"].iloc[-1] - pred2["Perf"].iloc[-1])
+
+                if correlation >= 80:
+                    st.success(f"**คะแนนความเหมือน:** {correlation:.2f}% 👯 (ยืนยัน: สองตัวนี้คือ **หุ้นแฝด!** วิ่งตามกันเสมอ)")
+                    if perf_gap > 3.0: # ถ้าห่างกันเกิน 3% ให้สัญญาณ Arbitrage
+                        laggard = sym1 if pred1["Perf"].iloc[-1] < pred2["Perf"].iloc[-1] else sym2
+                        leader = sym2 if laggard == sym1 else sym1
+                        st.info(f"💡 **สัญญาณเก็งกำไรขั้นสูง (Arbitrage):** ตอนนี้ **{leader}** พุ่งนำหน้าไปแล้ว ทิ้งให้ **{laggard}** รั้งท้าย (Gap ห่างกัน {perf_gap:.2f}%) นี่คือจังหวะทองในการเข้าซื้อ **{laggard}** เพื่อเก็งกำไรตอนที่ราคามันวิ่งตามไปปิดช่องว่าง!")
+                    else:
+                        st.warning("💡 ตอนนี้หุ้นแฝดคู่นี้ยังวิ่งตีคู่กันมา สูสีมากครับ ยังไม่มีช่องว่าง Arbitrage ให้ทำกำไร")
+                        
+                elif correlation >= 50:
+                    st.info(f"**คะแนนความเหมือน:** {correlation:.2f}% (วิ่งคล้ายกัน) มีความสัมพันธ์กันในระดับปานกลาง")
+                elif correlation <= -50:
+                    st.error(f"**คะแนนความเหมือน:** {correlation:.2f}% 🧲 (วิ่งสวนทางกันชัดเจน) เหมาะสำหรับซื้อตัวนึงเพื่อ Hedging พอร์ต")
+                else:
+                    st.warning(f"**คะแนนความเหมือน:** {correlation:.2f}% (ต่างคนต่างวิ่ง) สองตัวนี้แทบไม่มีความเชื่อมโยงกันเลย")
+                
+                st.markdown("---")
+                
+                # --- กรรมการชูมือ ---
                 if s1_score > s2_score:
-                    st.success(f"🏆 **ผู้ชนะคือ: 🔵 {sym1}** (AI Score: {s1_score:.2f}% | ชนะ {sym2} ที่ได้ {s2_score:.2f}%)")
+                    st.success(f"🏆 **ผู้ชนะ AI Score:** 🔵 {sym1} ({s1_score:.2f}% ชนะ {sym2} ที่ได้ {s2_score:.2f}%)")
                 elif s2_score > s1_score:
-                    st.success(f"🏆 **ผู้ชนะคือ: 🔴 {sym2}** (AI Score: {s2_score:.2f}% | ชนะ {sym1} ที่ได้ {s1_score:.2f}%)")
+                    st.success(f"🏆 **ผู้ชนะ AI Score:** 🔴 {sym2} ({s2_score:.2f}% ชนะ {sym1} ที่ได้ {s1_score:.2f}%)")
                 else:
                     st.warning("🤝 เสมอกัน! (กรรมการให้คะแนนเท่ากันเป๊ะ)")
                 
-                st.markdown("### 📊 สรุปสถิติหมัดต่อหมัด")
-                stat_df = pd.DataFrame({
-                    "สถิติการชก": ["AI Score (ความน่าจะเป็น)", "RSI (ความร้อนแรงของราคา)", "Volume Surge (มีวาฬเข้าไหม?)", "Trend (เทรนด์ระดับ Macro)"],
-                    f"🔵 {sym1}": [f"{s1_score:.2f}%", f"{pred1.iloc[-1]['RSI']:.2f}", "✅ ใช่" if pred1.iloc[-1]['Volume_Surge'] else "❌ ไม่", "📈 ขาขึ้น" if pred1.iloc[-1]['Macro_Uptrend'] else "📉 ขาลง"],
-                    f"🔴 {sym2}": [f"{s2_score:.2f}%", f"{pred2.iloc[-1]['RSI']:.2f}", "✅ ใช่" if pred2.iloc[-1]['Volume_Surge'] else "❌ ไม่", "📈 ขาขึ้น" if pred2.iloc[-1]['Macro_Uptrend'] else "📉 ขาลง"]
-                })
-                st.table(stat_df)
-                
                 st.markdown("### 📈 กราฟเปรียบเทียบผลงาน (Performance %)")
-                p1_base = pred1["Close"].iloc[0]
-                p2_base = pred2["Close"].iloc[0]
-                
-                pred1["Perf"] = ((pred1["Close"] - p1_base) / p1_base) * 100
-                pred2["Perf"] = ((pred2["Close"] - p2_base) / p2_base) * 100
                 
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=pred1.index, y=pred1["Perf"], name=f"🔵 {sym1}", line=dict(color='#00b4d8', width=2)))
