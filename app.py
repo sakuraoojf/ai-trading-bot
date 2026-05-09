@@ -8,10 +8,10 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V14: Backtest Engine)")
+st.title("🚀 AI Trading Super Dashboard (V15: Final Form)")
 
-# --- เพิ่มเมนู "Backtest AI" ---
-menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Portfolio AI", "Backtest AI", "Train Model"])
+# --- เพิ่มเมนู "Seasonality Radar" เข้าไปเป็นอันดับ 6 ---
+menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Portfolio AI", "Backtest AI", "Seasonality Radar", "Train Model"])
 
 # --- ตั้งค่าความเสี่ยง (Risk Management) ---
 st.sidebar.markdown("---")
@@ -262,9 +262,6 @@ elif menu == "Portfolio AI":
                 except Exception as e:
                     st.error(f"❌ เกิดข้อผิดพลาดในการคำนวณ: กรุณาตรวจสอบชื่อหุ้นอีกครั้งครับ (Error: {e})")
 
-# ====================================================
-# --- BONUS 2: BACKTEST AI (เครื่องย้อนเวลาจำลองเทรด) ---
-# ====================================================
 elif menu == "Backtest AI":
     st.subheader("⏮️ Backtest AI (เครื่องย้อนเวลาจำลองการเทรด)")
     st.markdown("ระบบจะย้อนเวลากลับไป 1 ปี และจำลองการซื้อขายตามสัญญาณ AI ทุกขั้นตอน เพื่อพิสูจน์ว่ากลยุทธ์ของบอทตัวนี้ทำเงินได้จริงหรือไม่เมื่อเทียบกับการ **'ซื้อแล้วถือทิ้งไว้ (Buy & Hold)'**")
@@ -282,7 +279,6 @@ elif menu == "Backtest AI":
                 model = load_model()
                 pred = predict(df, model)
                 
-                # --- ตัวแปรการจำลอง (Simulation Variables) ---
                 cash = starting_cash
                 position_shares = 0
                 buy_price = 0
@@ -291,7 +287,7 @@ elif menu == "Backtest AI":
                 trades = []
                 
                 initial_price = pred.iloc[0]["Close"]
-                bh_shares = starting_cash / initial_price # สมมติซื้อวันแรกแล้วถือยาว
+                bh_shares = starting_cash / initial_price 
                 
                 for index, row in pred.iterrows():
                     price = row["Close"]
@@ -301,43 +297,35 @@ elif menu == "Backtest AI":
                     atr_sl = row["ATR_SL"]
                     macro_up = row["Macro_Uptrend"]
                     
-                    # 1. Buy & Hold (มนุษย์ปกติ)
                     buy_hold_equity = bh_shares * price
                     buy_hold_curve.append(buy_hold_equity)
                     
-                    # 2. AI Strategy Logic (บอทเทรด)
                     if position_shares == 0:
-                        # เงื่อนไขเข้าซื้อ: กราฟเป็นขาขึ้นและคะแนน AI เกิน 60
                         if score > 60 and price > ema20 and rsi > 50 and macro_up:
                             position_shares = cash / price
                             cash = 0
                             buy_price = price
                             trades.append({'Date': index.strftime('%Y-%m-%d'), 'Action': '🟢 BUY', 'Price': f"${price:.2f}", 'Profit/Loss': '-'})
                     elif position_shares > 0:
-                        # เงื่อนไขขายทิ้ง: หลุดเส้นหนีตาย ATR หรือ AI บอกให้หนี
                         if price < atr_sl or score < 40 or price < ema20:
                             cash = position_shares * price
                             position_shares = 0
                             profit_pct = ((price - buy_price) / buy_price) * 100
                             trades.append({'Date': index.strftime('%Y-%m-%d'), 'Action': '🔴 SELL', 'Price': f"${price:.2f}", 'Profit/Loss': f"{profit_pct:.2f}%"})
                             
-                    # บันทึกมูลค่าพอร์ตปัจจุบันของบอท
                     current_equity = cash if position_shares == 0 else position_shares * price
                     equity_curve.append(current_equity)
                 
-                # ปิดสถานะวันสุดท้ายเพื่อคำนวณเงินสด
                 if position_shares > 0:
                     cash = position_shares * pred.iloc[-1]["Close"]
                     
                 pred["Equity"] = equity_curve
                 pred["Buy_Hold"] = buy_hold_curve
                 
-                # --- สรุปสถิติ (Metrics) ---
                 net_profit = cash - starting_cash
                 net_profit_pct = (net_profit / starting_cash) * 100
                 bh_profit_pct = ((buy_hold_curve[-1] - starting_cash) / starting_cash) * 100
                 
-                # นับการชนะ/แพ้
                 wins = 0
                 losses = 0
                 for t in trades:
@@ -349,12 +337,10 @@ elif menu == "Backtest AI":
                 total_closed = wins + losses
                 win_rate = (wins / total_closed * 100) if total_closed > 0 else 0
                 
-                # คำนวณ Max Drawdown (พังหนักสุด)
                 pred['Peak'] = pred['Equity'].cummax()
                 pred['Drawdown'] = (pred['Equity'] - pred['Peak']) / pred['Peak']
                 max_dd = pred['Drawdown'].min() * 100
                 
-                # --- แสดงผลหน้าเว็บ ---
                 st.markdown("---")
                 st.success(f"✅ จำลองการเทรด 1 ปีเสร็จสิ้น! บอททำการเทรดเข้า-ออกไปทั้งหมด {total_closed} รอบ")
                 
@@ -364,7 +350,6 @@ elif menu == "Backtest AI":
                 c3.metric("พอร์ตเคยติดลบหนักสุด (Max Drawdown)", f"{max_dd:.2f}%", "ความเสี่ยงขั้นวิกฤต", delta_color="inverse")
                 c4.metric("กำไรของคนทั่วไป (Buy & Hold)", f"${buy_hold_curve[-1]-starting_cash:.2f}", f"{bh_profit_pct:.2f}%", delta_color="off")
                 
-                # สร้างกราฟเปรียบเทียบ
                 st.markdown("### 📈 กราฟเปรียบเทียบความรวย (AI vs Buy & Hold)")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=pred.index, y=pred["Equity"], name="🤖 พอร์ตที่เทรดด้วย AI Strategy", line=dict(color='#00ffcc', width=3)))
@@ -372,16 +357,100 @@ elif menu == "Backtest AI":
                 fig.update_layout(yaxis_title="มูลค่าพอร์ตเงินทุน ($)", template="plotly_dark", height=500, hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # สรุปใครชนะ
                 if net_profit_pct > bh_profit_pct:
                     st.success(f"🏆 **สรุปผล:** บอท AI เอาชนะการซื้อถือยาวได้ขาดลอย! (บอทกำไร {net_profit_pct:.2f}% vs คนทั่วไปกำไร {bh_profit_pct:.2f}%) กลยุทธ์นี้ใช้งานได้จริง!")
                 else:
-                    st.warning(f"⚠️ **สรุปผล:** บอท AI แพ้การถือยาวในหุ้นตัวนี้ครับ! (คนทั่วไปกำไร {bh_profit_pct:.2f}% vs บอทได้แค่ {net_profit_pct:.2f}%) แนะนำให้เลี่ยงการใช้บอทเทรดหุ้นตัวนี้ หรือหุ้นตัวนี้อาจจะเหมาะกับการเก็บยาวมากกว่า")
+                    st.warning(f"⚠️ **สรุปผล:** บอท AI แพ้การถือยาวในหุ้นตัวนี้ครับ! แนะนำให้เลี่ยงการใช้บอทเทรดหุ้นตัวนี้ หรือหุ้นตัวนี้อาจจะเหมาะกับการเก็บยาวมากกว่า")
                 
-                # ประวัติการเทรด
                 if trades:
                     with st.expander("📝 คลิกเพื่อดูประวัติการเข้าซื้อและขาย (Trade Log) ทุกไม้"):
                         st.table(pd.DataFrame(trades))
+
+# ====================================================
+# --- FINAL BONUS: SEASONALITY RADAR (เรดาร์ฤดูกาล) ---
+# ====================================================
+elif menu == "Seasonality Radar":
+    st.subheader("❄️ Seasonality Radar (เรดาร์สถิติฤดูกาล 10 ปี)")
+    st.markdown("ระบบจะดึงข้อมูลย้อนหลัง 10 ปี เพื่อหาสถิติว่า **'ในแต่ละเดือน หุ้นตัวนี้มีโอกาสขึ้นกี่เปอร์เซ็นต์?'** ช่วยให้คุณกะจังหวะเข้าซื้อได้แม่นยำขึ้น")
+    
+    col1, col2 = st.columns([3, 1])
+    season_sym = col1.text_input("ชื่อหุ้นที่ต้องการดูสถิติ (Symbol)", "AAPL").upper()
+    
+    if st.button("🔍 สั่ง AI สแกนสถิติฤดูกาล"):
+        with st.spinner("AI กำลังขุดข้อมูลย้อนหลัง 10 ปี..."):
+            try:
+                # โหลดข้อมูลย้อนหลัง 10 ปี
+                df = yf.download(season_sym, period="10y", interval="1d", progress=False)
+                if df.empty:
+                    st.error("❌ ไม่พบข้อมูลหุ้นตัวนี้ครับ")
+                else:
+                    if isinstance(df.columns, pd.MultiIndex):
+                        df.columns = df.columns.droplevel(1)
+                    
+                    # แปลงข้อมูลเป็นรายเดือน (Month End)
+                    monthly_data = df['Close'].resample('ME').last()
+                    monthly_returns = monthly_data.pct_change() * 100
+                    
+                    mr_df = pd.DataFrame({
+                        'Return': monthly_returns, 
+                        'Month': monthly_returns.index.month, 
+                        'Year': monthly_returns.index.year
+                    }).dropna()
+                    
+                    # สรุปสถิติ
+                    stats = []
+                    for m in range(1, 13):
+                        m_data = mr_df[mr_df['Month'] == m]['Return']
+                        if not m_data.empty:
+                            wins = sum(m_data > 0)
+                            total = len(m_data)
+                            win_rate = (wins / total * 100)
+                            avg_return = m_data.mean()
+                            stats.append({'Month_Num': m, 'Win Rate (%)': win_rate, 'Avg Return (%)': avg_return})
+                            
+                    stats_df = pd.DataFrame(stats)
+                    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    stats_df['Month'] = [month_names[m-1] for m in stats_df['Month_Num']]
+                    
+                    st.markdown("---")
+                    st.success(f"✅ วิเคราะห์ข้อมูล {season_sym} ย้อนหลังเสร็จสิ้น! (รวมข้อมูลทั้งหมด {len(mr_df)} เดือน)")
+                    
+                    # สรุปเดือนที่ดีที่สุดและแย่ที่สุด
+                    best_month = stats_df.loc[stats_df['Avg Return (%)'].idxmax()]
+                    worst_month = stats_df.loc[stats_df['Avg Return (%)'].idxmin()]
+                    
+                    st.info(f"💡 **AI สรุปสถิติให้คุณ:**\n\n🟢 **เดือนทองคำ:** เดือนที่น่าเข้าซื้อที่สุดคือ **{best_month['Month']}** (โอกาสชนะ {best_month['Win Rate (%)']:.0f}%, ผลตอบแทนเฉลี่ย +{best_month['Avg Return (%)']:.2f}%)\n\n🔴 **เดือนอันตราย:** เดือนที่ควรหนีไปพักผ่อนคือ **{worst_month['Month']}** (โอกาสชนะ {worst_month['Win Rate (%)']:.0f}%, ผลตอบแทนเฉลี่ย {worst_month['Avg Return (%)']:.2f}%)")
+                    
+                    c1, c2 = st.columns(2)
+                    
+                    # 1. กราฟ Win Rate
+                    fig1 = go.Figure(data=[
+                        go.Bar(
+                            x=stats_df['Month'], 
+                            y=stats_df['Win Rate (%)'],
+                            marker_color=['#00ffcc' if val >= 50 else '#ff4d4d' for val in stats_df['Win Rate (%)']],
+                            text=[f"{val:.0f}%" for val in stats_df['Win Rate (%)']],
+                            textposition='auto'
+                        )
+                    ])
+                    fig1.update_layout(title="โอกาสปิดบวกในแต่ละเดือน (Win Rate %)", template="plotly_dark", yaxis_title="Win Rate (%)", yaxis_range=[0, 100])
+                    c1.plotly_chart(fig1, use_container_width=True)
+                    
+                    # 2. กราฟ Average Return
+                    fig2 = go.Figure(data=[
+                        go.Bar(
+                            x=stats_df['Month'], 
+                            y=stats_df['Avg Return (%)'],
+                            marker_color=['#00ffcc' if val > 0 else '#ff4d4d' for val in stats_df['Avg Return (%)']],
+                            text=[f"{val:.2f}%" for val in stats_df['Avg Return (%)']],
+                            textposition='auto'
+                        )
+                    ])
+                    fig2.update_layout(title="ผลตอบแทนเฉลี่ยในแต่ละเดือน (Avg Return %)", template="plotly_dark", yaxis_title="Average Return (%)")
+                    c2.plotly_chart(fig2, use_container_width=True)
+                    
+            except Exception as e:
+                st.error(f"❌ เกิดข้อผิดพลาด: {e}")
 
 elif menu == "Scanner":
     st.subheader(f"📊 ระบบจับวาฬ (สแกนราย {interval} บนหุ้นซิ่ง 42 ตัว)")
