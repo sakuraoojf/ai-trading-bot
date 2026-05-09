@@ -5,7 +5,7 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (Level 3: Multi-Timeframe)")
+st.title("🚀 AI Trading Super Dashboard (Level 5: Pro Risk Management)")
 
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Train Model"])
 
@@ -30,19 +30,18 @@ if menu == "Dashboard":
             price = last_row['Close']
             ema20 = last_row['EMA20']
             rsi = last_row['RSI']
-            support = last_row['Support']
+            atr_sl = last_row['ATR_SL']
             resist = last_row['Resistance']
             vol_surge = last_row['Volume_Surge']
             macro_up = last_row['Macro_Uptrend']
             
-            # --- LEVEL 3 SIGNAL LOGIC ---
             if score > 70 and price > ema20 and rsi > 50 and vol_surge and macro_up:
                 st.success("## 🚀 SUPER BUY (เทรนด์ใหญ่เป็นขาขึ้น + วาฬกำลังลาก!)")
                 st.balloons()
             elif score > 60 and price > ema20 and rsi > 50 and macro_up:
                 st.success("## 🟢 BUY (กราฟสวย ทยอยเก็บสะสม)")
             elif (score > 60 and price > ema20) and not macro_up:
-                st.warning("## 🟡 AVOID: กราฟสั้นสวย แต่เทรนด์ใหญ่ยังเป็น 'ขาลงดิ่งนรก' (ห้ามเข้าเด็ดขาด!)")
+                st.warning("## 🟡 AVOID: กราฟสั้นสวย แต่เทรนด์ใหญ่ยังเป็น 'ขาลง' (อย่าฝืนเล่น!)")
             elif score < 40 or price < ema20:
                 st.error("## 🔴 SELL / AVOID (ขาลง หนีด่วน!)")
             else:
@@ -52,7 +51,7 @@ if menu == "Dashboard":
             col1.metric("Current Price", f"${price:.2f}")
             col2.metric("AI Score", f"{score:.2f}%")
             col3.metric("🎯 จุดทำกำไร (TP)", f"${resist:.2f}")
-            col4.metric("🛑 จุดตัดขาดทุน (SL)", f"${support:.2f}")
+            col4.metric("🛑 ATR Trailing Stop", f"${atr_sl:.2f}", "วิ่งตามความแกว่ง", delta_color="off")
             
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
@@ -60,7 +59,7 @@ if menu == "Dashboard":
                 low=pred["Low"], close=pred["Close"], name="Price"
             ))
             fig.add_trace(go.Scatter(x=pred.index, y=pred["EMA20"], line=dict(color='blue', width=1), name="EMA 20"))
-            fig.add_trace(go.Scatter(x=pred.index, y=pred["Support"], line=dict(color='red', width=2, dash='dot'), name="Stop Loss Line"))
+            fig.add_trace(go.Scatter(x=pred.index, y=pred["ATR_SL"], line=dict(color='orange', width=2, dash='dot'), name="ATR Stop Loss (เส้นหนีตาย)"))
             
             surge_df = pred[pred["Volume_Surge"] == True]
             if not surge_df.empty:
@@ -75,11 +74,10 @@ if menu == "Dashboard":
 
 elif menu == "Scanner":
     st.subheader(f"📊 ระบบจับวาฬ (สแกนราย {interval} บนหุ้นซิ่ง 42 ตัว)")
-    st.info("💡 กรองมาเฉพาะหุ้นที่มีสัญญาณ BUY และ **เทรนด์ใหญ่ต้องเป็นขาขึ้นเท่านั้น!**")
-    with st.spinner("AI กำลังสแกนหาจุดพลุแตก... (อาจใช้เวลา 10-20 วินาที)"):
+    with st.spinner("AI กำลังสแกนหาจุดพลุแตก..."):
         results = scan_market(period=period, interval=interval)
         if results.empty:
-            st.warning("ตอนนี้เทรนด์ใหญ่พังหมด ยังไม่มีหุ้นตัวไหนพร้อมวิ่งครับ กำเงินสดรอดูสถานการณ์ไปก่อน!")
+            st.warning("ตอนนี้เทรนด์ใหญ่พังหมด ยังไม่มีหุ้นตัวไหนพร้อมวิ่งครับ!")
         else:
             st.dataframe(results, use_container_width=True, height=500)
 
