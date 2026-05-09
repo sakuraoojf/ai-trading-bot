@@ -1,20 +1,21 @@
 import streamlit as st
 import plotly.graph_objects as go
+import yfinance as yf
+import pandas as pd
 from data_loader import get_data
 from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V6: Risk Manager)")
+st.title("🚀 AI Trading Super Dashboard (V7: Money Flow Radar)")
 
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Train Model"])
 
-# --- เพิ่มแถบตั้งค่าความเสี่ยงด้านซ้ายมือ ---
+# --- ตั้งค่าความเสี่ยง (Risk Management) ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("🛡️ แผงควบคุมความเสี่ยง")
 capital = st.sidebar.number_input("เงินทุนในพอร์ตทั้งหมด ($)", min_value=1.0, value=15.0, step=1.0)
 risk_pct = st.sidebar.slider("ยอมขาดทุนเต็มที่ต่อรอบ (%)", min_value=0.5, max_value=10.0, value=2.0, step=0.5)
-st.sidebar.markdown("*(แนะนำให้ตั้งค่า 2% เพื่อความปลอดภัยระดับกองทุน)*")
 
 interval_map = {"15 Minutes (สายซิ่ง Day Trade)": "15m", "1 Hour (สายรันเทรนด์)": "1h", "1 Day (สายถือยาว)": "1d"}
 st.sidebar.markdown("---")
@@ -23,7 +24,38 @@ interval = interval_map[selected_tf]
 period = "60d" if interval in ["15m", "1h"] else "1y"
 
 if menu == "Dashboard":
-    symbol = st.text_input("Symbol", "COIN").upper()
+    
+    # --- FEATURE 3: SECTOR HEATMAP (เรดาร์จับกระแสเงิน) ---
+    st.markdown("### 🗺️ เรดาร์จับกระแสเงิน (วาฬเข้ากลุ่มไหน?)")
+    etfs = {
+        "XLK": "เทคโนโลยี", 
+        "IBIT": "คริปโต", 
+        "XLY": "ฟุ่มเฟือย",
+        "XLF": "การเงิน",
+        "XLE": "พลังงาน"
+    }
+    
+    cols = st.columns(5)
+    for idx, (ticker, name) in enumerate(etfs.items()):
+        try:
+            # ดึงข้อมูลย้อนหลัง 5 วันเพื่อหาค่าความเปลี่ยนแปลงของเมื่อวานเทียบวันนี้
+            etf_df = yf.download(ticker, period="5d", interval="1d", progress=False)
+            if not etf_df.empty and len(etf_df) >= 2:
+                if isinstance(etf_df.columns, pd.MultiIndex):
+                    etf_df.columns = etf_df.columns.droplevel(1)
+                close_today = float(etf_df["Close"].iloc[-1])
+                close_yest = float(etf_df["Close"].iloc[-2])
+                pct_change = ((close_today - close_yest) / close_yest) * 100
+                cols[idx].metric(f"{ticker} ({name})", f"${close_today:.2f}", f"{pct_change:.2f}%")
+            else:
+                cols[idx].metric(f"{ticker} ({name})", "N/A", "0.00%")
+        except:
+            cols[idx].metric(f"{ticker} ({name})", "Error", "0.00%")
+            
+    st.markdown("---")
+    
+    # --- ของเดิม: ค้นหาหุ้น ---
+    symbol = st.text_input("ค้นหาหุ้นที่ Discord แจ้งเตือน (Symbol)", "COIN").upper()
     df = get_data(symbol, period=period, interval=interval)
     
     if df.empty:
@@ -71,15 +103,14 @@ if menu == "Dashboard":
                 position_shares = risk_amount / distance_to_sl
                 position_dollars = position_shares * price
                 
-                # เช็คว่าบอทสั่งให้ซื้อเกินเงินในกระเป๋าเราไหม
                 if position_dollars >= capital:
                     position_dollars = capital
                     position_shares = capital / price
                     actual_risk_amount = position_shares * distance_to_sl
                     actual_risk_pct = (actual_risk_amount / capital) * 100
-                    st.info(f"💡 **แผนการเทรด (ปลอดภัย):** อนุญาตให้เทรดหมดหน้าตัก (ซื้อเต็มจำนวน **${capital:.2f}**) ได้เลยครับ!\n\n*(เหตุผล: เพราะตอนนี้ราคากับจุด ATR Stop Loss อยู่ใกล้กันมาก หากซวยจริงๆ แล้วโดนคัตลอส คุณจะเสียเงินแค่ **${actual_risk_amount:.2f}** หรือคิดเป็น **{actual_risk_pct:.2f}%** ของพอร์ต ซึ่งอยู่ในระดับที่ปลอดภัยมากครับ)*")
+                    st.info(f"💡 **แผนการเทรด (ปลอดภัย):** อนุญาตให้เทรดหมดหน้าตัก (ซื้อเต็มจำนวน **${capital:.2f}**) ได้เลยครับ!\n\n*(เหตุผล: เพราะตอนนี้ราคากับจุด ATR Stop Loss อยู่ใกล้กันมาก หากโดนคัตลอส คุณจะเสียเงินแค่ **${actual_risk_amount:.2f}** หรือคิดเป็น **{actual_risk_pct:.2f}%** ของพอร์ต ซึ่งปลอดภัยมาก)*")
                 else:
-                    st.warning(f"💡 **แผนการเทรด (ห้าม All-in):** ให้แบ่งเงินเข้าซื้อหุ้นตัวนี้แค่ **${position_dollars:.2f}** เท่านั้นครับ (ซื้อแบบเศษหุ้น {position_shares:.4f} หุ้น)\n\n*(เหตุผล: เพราะตอนนี้ราคาวิ่งห่างจากจุด ATR Stop Loss มากแล้ว หากคุณฝืนซื้อหมดหน้าตักแล้วโดนคัตลอส พอร์ตจะพังครับ แต่ถ้าคุณซื้อด้วยเงินก้อนเล็กตามที่บอทบอก หากโดนคัตลอส คุณจะเสียเงินแค่ **${risk_amount:.2f}** หรือ **{risk_pct}%** ตามเป้าเป๊ะๆ ครับ)*")
+                    st.warning(f"💡 **แผนการเทรด (ห้าม All-in):** ให้แบ่งเงินเข้าซื้อหุ้นตัวนี้แค่ **${position_dollars:.2f}** เท่านั้นครับ (ซื้อเศษหุ้น {position_shares:.4f} หุ้น)\n\n*(เหตุผล: เพราะราคาวิ่งห่างจาก ATR Stop Loss มากแล้ว หากคุณแบ่งไม้ซื้อตามที่บอทบอก หากโดนคัตลอส คุณจะเสียเงินแค่ **${risk_amount:.2f}** หรือ **{risk_pct}%** ตามเป้าเป๊ะๆ)*")
             else:
                 st.error("💡 **แผนการเทรด:** ราคาพุ่งทะลุจุดปลอดภัยไปแล้ว ห้ามเข้าซื้อเด็ดขาด!")
             
