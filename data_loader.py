@@ -24,6 +24,14 @@ def get_data(symbol="AAPL", period="60d", interval="15m"):
     
     df["Resistance"] = df["High"].rolling(20).max()
 
+    # --- Feature 4: Bullish Engulfing Pattern (แท่งเทียนกลืนกิน) ---
+    prev_open = df['Open'].shift(1)
+    prev_close = df['Close'].shift(1)
+    is_prev_red = prev_close < prev_open
+    is_curr_green = df['Close'] > df['Open']
+    engulfs_body = (df['Open'] <= prev_close) & (df['Close'] > prev_open)
+    df['Bullish_Engulfing'] = is_prev_red & is_curr_green & engulfs_body
+
     # --- Level 5: ระบบวัดความแกว่ง ATR (Average True Range) ---
     df['Prev_Close'] = df['Close'].shift(1)
     df['TR1'] = df['High'] - df['Low']
@@ -31,8 +39,6 @@ def get_data(symbol="AAPL", period="60d", interval="15m"):
     df['TR3'] = abs(df['Low'] - df['Prev_Close'])
     df['TR'] = df[['TR1', 'TR2', 'TR3']].max(axis=1)
     df['ATR'] = df['TR'].rolling(window=14).mean()
-    
-    # จุดคัตลอสยืดหยุ่น: ถอยลงมาจากราคาปัจจุบัน 1.5 เท่าของความแกว่ง
     df['ATR_SL'] = df['Close'] - (1.5 * df['ATR'])
     df = df.drop(columns=['Prev_Close', 'TR1', 'TR2', 'TR3', 'TR'])
 
