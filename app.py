@@ -7,9 +7,8 @@ from ai_engine import train_model, load_model, predict
 from scanner import scan_market
 
 st.set_page_config(layout="wide")
-st.title("🚀 AI Trading Super Dashboard (V9: Final Form)")
+st.title("🚀 AI Trading Super Dashboard (V10: News Sentiment)")
 
-# --- อัปเดตเมนูบาร์: เพิ่ม "Stock Duel" ---
 menu = st.sidebar.selectbox("Menu", ["Dashboard", "Scanner", "Stock Duel", "Train Model"])
 
 # --- ตั้งค่าความเสี่ยง (Risk Management) ---
@@ -24,9 +23,39 @@ selected_tf = st.sidebar.selectbox("Timeframe", list(interval_map.keys()))
 interval = interval_map[selected_tf]
 period = "60d" if interval in ["15m", "1h"] else "1y"
 
+# --- ฟังก์ชัน AI อ่านข่าว ---
+def analyze_news(symbol):
+    try:
+        ticker = yf.Ticker(symbol)
+        news = ticker.news
+        if not news: return [], "Neutral", 0
+            
+        positive_words = ['surge', 'beat', 'up', 'record', 'partnership', 'profit', 'upgrade', 'high', 'gain', 'buy', 'growth', 'jump']
+        negative_words = ['crash', 'miss', 'down', 'drop', 'lawsuit', 'sec', 'downgrade', 'low', 'loss', 'sell', 'risk', 'fail', 'investigation', 'plunge']
+        
+        score = 0
+        news_data = []
+        for item in news[:5]:
+            title = item.get('title', '')
+            link = item.get('link', '')
+            publisher = item.get('publisher', '')
+            title_lower = title.lower()
+            
+            pos_match = sum(1 for word in positive_words if word in title_lower)
+            neg_match = sum(1 for word in negative_words if word in title_lower)
+            score += (pos_match - neg_match)
+            news_data.append({"title": title, "publisher": publisher, "link": link})
+            
+        if score >= 1: sentiment = "Bullish 🟢 (ข่าวดี พุ่งแน่!)"
+        elif score <= -1: sentiment = "Bearish 🔴 (ข่าวร้าย ระวังโดนทุบ!)"
+        else: sentiment = "Neutral 🟡 (ข่าวทรงตัว)"
+        return news_data, sentiment, score
+    except:
+        return [], "Neutral 🟡 (ไม่มีข้อมูล)", 0
+
 if menu == "Dashboard":
     
-    # --- FEATURE 3: SECTOR HEATMAP (เรดาร์จับกระแสเงิน) ---
+    # --- FEATURE 3: SECTOR HEATMAP ---
     st.markdown("### 🗺️ เรดาร์จับกระแสเงิน (วาฬเข้ากลุ่มไหน?)")
     etfs = {"XLK": "เทคโนโลยี", "IBIT": "คริปโต", "XLY": "ฟุ่มเฟือย", "XLF": "การเงิน", "XLE": "พลังงาน"}
     cols = st.columns(5)
@@ -81,7 +110,6 @@ if menu == "Dashboard":
             else:
                 st.warning("## 🟡 WAIT (รอดูอาการไปก่อน)")
                 
-            # --- FEATURE 4: PATTERN ALERT ---
             if bull_engulfing:
                 st.info("🔥 **PATTERN DETECTED:** พบสัญลักษณ์ 🕯️ **Bullish Engulfing (แท่งเทียนกลืนกินขาขึ้น)** เพิ่งเกิดพฤติกรรมการกวาดซื้อกลับตัวอย่างรุนแรง ถือเป็นจุดเข้าที่มีความแม่นยำสูงมาก!")
             
@@ -98,7 +126,6 @@ if menu == "Dashboard":
             if distance_to_sl > 0:
                 position_shares = risk_amount / distance_to_sl
                 position_dollars = position_shares * price
-                
                 if position_dollars >= capital:
                     position_dollars = capital
                     position_shares = capital / price
@@ -138,9 +165,29 @@ if menu == "Dashboard":
             fig.update_layout(height=600, template="plotly_dark")
             st.plotly_chart(fig, use_container_width=True)
 
-# ====================================================
+            # ====================================================
+            # --- LEVEL 2: NEWS SENTIMENT (สแกนอารมณ์ข่าว) ---
+            # ====================================================
+            st.markdown("---")
+            st.markdown("### 📰 เรดาร์สแกนข่าวเศรษฐกิจ (News Sentiment)")
+            with st.spinner("AI กำลังสแกนพาดหัวข่าวล่าสุด..."):
+                news_list, sentiment, news_score = analyze_news(symbol)
+                
+                if sentiment.startswith("Bullish"):
+                    st.success(f"**อารมณ์ตลาดโดยรวม:** {sentiment} (คะแนน: {news_score}) - กราฟสวย ข่าวดี สนับสนุนกันเต็มที่!")
+                elif sentiment.startswith("Bearish"):
+                    st.error(f"**อารมณ์ตลาดโดยรวม:** {sentiment} (คะแนน: {news_score}) - ⚠️ ข่าวร้ายกำลังมา ระวังโดนทุบหนัก!")
+                else:
+                    st.warning(f"**อารมณ์ตลาดโดยรวม:** {sentiment} (คะแนน: {news_score}) - ข่าวทรงตัว ไม่มีนัยยะสำคัญ")
+                
+                if news_list:
+                    with st.expander("คลิกเพื่อดูพาดหัวข่าวล่าสุด 5 อันดับแรก"):
+                        for n in news_list:
+                            st.markdown(f"- [{n['title']}]({n['link']}) *(จาก: {n['publisher']})*")
+                else:
+                    st.info("ไม่พบข่าวสารล่าสุดของหุ้นตัวนี้")
+
 # --- FEATURE 5: STOCK DUEL (สังเวียนเปรียบเทียบหุ้น) ---
-# ====================================================
 elif menu == "Stock Duel":
     st.subheader("⚔️ สังเวียนเปรียบเทียบหุ้น (Relative Strength Duel)")
     st.markdown("ระบบจะประเมินคะแนน AI Score ของนักมวยทั้ง 2 ฝั่ง และสร้างกราฟเปรียบเทียบ Performance (เริ่มวิ่งจาก 0% เท่ากัน) เพื่อหาว่าม้าตัวไหนวิ่งแรงกว่ากัน")
@@ -164,7 +211,6 @@ elif menu == "Stock Duel":
                 s1_score = pred1.iloc[-1]['score']
                 s2_score = pred2.iloc[-1]['score']
                 
-                # --- กรรมการชูมือ ---
                 st.markdown("---")
                 if s1_score > s2_score:
                     st.success(f"🏆 **ผู้ชนะคือ: 🔵 {sym1}** (AI Score: {s1_score:.2f}% | ชนะ {sym2} ที่ได้ {s2_score:.2f}%)")
@@ -173,7 +219,6 @@ elif menu == "Stock Duel":
                 else:
                     st.warning("🤝 เสมอกัน! (กรรมการให้คะแนนเท่ากันเป๊ะ)")
                 
-                # --- ตารางสรุปหมัดต่อหมัด ---
                 st.markdown("### 📊 สรุปสถิติหมัดต่อหมัด")
                 stat_df = pd.DataFrame({
                     "สถิติการชก": ["AI Score (ความน่าจะเป็น)", "RSI (ความร้อนแรงของราคา)", "Volume Surge (มีวาฬเข้าไหม?)", "Trend (เทรนด์ระดับ Macro)"],
@@ -182,9 +227,7 @@ elif menu == "Stock Duel":
                 })
                 st.table(stat_df)
                 
-                # --- กราฟเปรียบเทียบ (Normalized Performance) ---
                 st.markdown("### 📈 กราฟเปรียบเทียบผลงาน (Performance %)")
-                # ปรับ base (ฐานเริ่มต้น) ให้เป็น 0% เท่ากันตั้งแต่วันแรกของกราฟ
                 p1_base = pred1["Close"].iloc[0]
                 p2_base = pred2["Close"].iloc[0]
                 
